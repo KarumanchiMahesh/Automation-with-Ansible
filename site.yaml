@@ -1,140 +1,74 @@
 ---
-
-- hosts: all
-  gather_facts: yes
-
-- name: Configuring HAproxy loadbalancer
+- name: Setup HAproxy
   hosts: HAproxy
-  become: yes
-  vars:
-      ui_pass: "{{ lookup('file', './uipassword') }}"
+  become: true
   tasks:
-
-    
-    
-    - name : sudo wait
-      become: yes
-      shell: while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 5; done;
-
-    - name: Installing HAproxy
+    - name: Install HAproxy
       apt:
         name: haproxy
         state: present
         update_cache: true
-      
+      when: ansible_distribution == "Ubuntu"
 
-    - name: gather server ip addresses
-      setup:
-            filter: ansible_default_ipv4.address     
-         
-    
-    - name: copy files haproxy.cfg
+    - name: Configure HAproxy
       template:
         src: haproxy.cfg.j2
-        dest: "/etc/haproxy/haproxy.cfg"
+        dest: /etc/haproxy/haproxy.cfg
       notify:
-        - restart haproxy
+        - Restart HAproxy
 
-    - name: install nginx, snmp, snmp-mibs-downloader
-      apt: 
-        update_cache: yes
-        name: [ 'nginx', 'snmp', 'snmp-mibs-downloader' ] 
-        state: latest
-      
-
-    - name: copy snmp conf file
-      template:
-            src: snmp.conf
-            dest: "/etc/snmp/snmp.conf"
-    - name: copy nginx config files
-      template:
-         src: nginx.conf.j2
-         dest: "/etc/nginx/nginx.conf"
-    - name: nginx start
+    - name: Enable and Start HAproxy
       service:
-        name: nginx
-        state: restarted
+        name: haproxy
+        state: started
+        enabled: true
 
   handlers:
-
-    - name: restart haproxy
+    - name: Restart HAproxy
       service:
-       name: haproxy
-       state: restarted
+        name: haproxy
+        state: restarted
 
-- hosts: webservers
-  become: yes
+- name: Setup Flask Application
+  hosts: webservers
+  become: true
   tasks:
-    - name: install pip
+    - name: Install dependencies
       apt:
-        name: python3-pip
-        state: present
-    
-    - name: install flask
+        name:
+          - python3
+          - python3-pip
+          - python3-flask
+        update_cache: true
+
+    - name: Deploy Flask app
+      git:
+        repo: 'https://github.com/patrikarlos/NSO_A2.git'
+        dest: /home/ubuntu/flaskapp
+
+    - name: Install Flask
       pip:
-        executable: pip3
         name: flask
-        state: latest
-    - name: install gunicorn
-      pip:
-        executable: pip3
-        name: gunicorn
-        state: latest
 
-    - name: createnew directory
-      file:
-              path: "/home/flask-app/"
-              state: directory
-    - name: copy app.py to webservers
-      template:
-        src: "application2.py"
-        dest: "/home/flask-app/app.py"
-
-
-    - name: start flask app
+    - name: Run Flask app
       shell: |
-        cd /home/flask-app/
-        gunicorn --bind 0.0.0.0:80 app:app&  
+        nohup python3 /home/ubuntu/flaskapp/application2.py > /home/ubuntu/flaskapp/app.log 2>&1 &
+      args:
+        executable: /bin/bash
 
-    - name: install snmpd
-      apt:
-              name: snmpd
-              state: latest
+- name: Test the application
+  hosts: localhost
+  tasks:
+    - name: Test flask responses
+      uri:
+        url: "http://89.46.83.95"
+        return_content: yes
+      register: result
+
+    - debug:
+        var: result.content
     
-    - name: cpy snmpd conf file
-      template:
-              src: snmpd.conf.j2
-              dest: "/etc/snmp/snmpd.conf"
-    - name: run snmpd
-      service:
-              name: snmpd
-              state: restarted    
-
-
-- hosts: HAproxy
-  become: yes
-  tasks: 
-        
-        - name: test HAproxy 1
-          uri:
-                  url: "http://localhost/"
-                  return_content:  yes
-          register: html_content
-        - debug: 
-            msg: "{{ html_content.content }}"
-
-        - name: test HAproxy 2
-          uri:
-                  url: "http://localhost/"
-                  return_content:  yes
-          register: html_content
-        - debug:
-            msg: "{{ html_content.content }}"
-
-        - name: test HAproxy 3
-          uri:
-                  url: "http://localhost/"
-                  return_content:  yes
-          register: html_content
-        - debug:
-            msg: "{{ html_content.content }}"
+    - name: Verify all webservers responded
+      fail:
+        msg: "Not all webservers responded during test."
+      when: "'devA' not in result.result[0].content and 'devB' not in result.result[1].content and 'devC' not in result.result[2].content"
