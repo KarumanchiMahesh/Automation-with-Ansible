@@ -8,4 +8,4 @@ devC
 
 [all:vars]
 ansible_user=ubuntu
-##REMOVED sshkey entry, handled by external SSH config file ##
+ansible_python_interpreter=/usr/bin/python3

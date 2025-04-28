@@ -1,0 +1,19 @@
+global
+    daemon
+    maxconn 256
+
+defaults
+    mode http
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+
+frontend http_front
+    bind *:80
+    default_backend http_back
+
+backend http_back
+    balance roundrobin
+    server devA 10.0.1.4:5000 check
+    server devB 10.0.1.5:5000 check
+    server devC 10.0.1.6:5000 check
