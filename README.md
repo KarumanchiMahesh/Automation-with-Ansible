@@ -13,8 +13,9 @@ This repository contains the Ansible playbook and configurations to deploy a Fla
 ## Files
 
 1. `hosts` - Ansible inventory file
-2. `site.yaml` - Main Ansible playbook
+2. `site.yaml` - Main Ansible playbook to deploy the Flask app with HAProxy Load Balancer
 3. `haproxy.cfg.j2` - HAProxy configuration template
+4. `test_deployment.yaml` - To test the deployment 
 
 ## Deployment Steps
 
