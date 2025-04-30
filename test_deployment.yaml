@@ -1,0 +1,54 @@
+- name: Test public access to HAproxy
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    haproxy_public_ip: "91.123.202.123" ### Replace it with your Public Ip of Haproxy
+
+  tasks:
+    - name: Send request to HAProxy (Request 1)
+      uri:
+        url: "http://{{ haproxy_public_ip }}/"
+        return_content: yes
+      register: response1
+      until: "'deva' in response1.content or 'devb' in response1.content or 'devc' in response1.content"
+      retries: 5
+      delay: 2
+
+    - name: Send request to HAProxy (Request 2)
+      uri:
+        url: "http://{{ haproxy_public_ip }}/"
+        return_content: yes
+      register: response2
+      until: "'deva' in response2.content or 'devb' in response2.content or 'devc' in response2.content"
+      retries: 5
+      delay: 2
+
+    - name: Send request to HAProxy (Request 3)
+      uri:
+        url: "http://{{ haproxy_public_ip }}/"
+        return_content: yes
+      register: response3
+      until: "'deva' in response3.content or 'devb' in response3.content or 'devc' in response3.content"
+      retries: 5
+      delay: 2
+
+    - name: Print all responses
+      debug:
+        msg:
+          - "Response 1: {{ response1.content }}"
+          - "Response 2: {{ response2.content }}"
+          - "Response 3: {{ response3.content }}"
+
+    - name: Extract hostnames from responses
+      set_fact:
+        all_hosts: "{{ [response1.content, response2.content, response3.content] | map('regex_search', '(dev[abc])') | list }}"
+
+    - name: Validate that all three hosts responded
+      assert:
+        that:
+          - "'deva' in all_hosts"
+          - "'devb' in all_hosts"
+          - "'devc' in all_hosts"
+        fail_msg: "Not all servers responded through HAProxy"
+        success_msg: "All three hosts responded correctly"
